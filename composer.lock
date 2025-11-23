@@ -7479,7 +7479,7 @@
                 },
                 {
                     "name": "Bernhard Schussek",
-                    "email": "bschussek@2bepublished.at"
+                    "email": "bschussekbepublished.at"
                 }
             ],
             "description": "Provides the functionality to compare PHP values for equality",
