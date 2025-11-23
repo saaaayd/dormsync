@@ -45,15 +45,16 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const menuItems = user?.role === 'admin' ? adminMenuItems : studentMenuItems;
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex md:flex-col w-64 bg-[#001F3F] text-white">
+    <div className="min-h-screen bg-gray-50">
+      {/* FIXED Sidebar - Desktop */}
+      {/* ADDED: fixed, top-0, left-0, h-screen, z-50 */}
+      <aside className="hidden md:flex md:flex-col w-64 bg-[#001F3F] text-white fixed top-0 left-0 h-screen z-50">
         <div className="p-6 border-b border-white/10">
-          <h1 className="text-[#FFD700]">DormSync</h1>
+          <h1 className="text-[#FFD700] text-2xl font-bold">DormSync</h1>
           <p className="text-sm text-white/70 mt-1">Management System</p>
         </div>
         
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
@@ -63,7 +64,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 onClick={() => onNavigate(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive 
-                    ? 'bg-[#FFD700] text-[#001F3F]' 
+                    ? 'bg-[#FFD700] text-[#001F3F] font-bold' 
                     : 'text-white/80 hover:bg-white/10'
                 }`}
               >
@@ -76,12 +77,12 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
 
         <div className="p-4 border-t border-white/10">
           <div className="px-4 py-2 mb-2">
-            <p className="text-sm text-white/90">{user?.name}</p>
+            <p className="text-sm text-white/90 font-medium">{user?.name}</p>
             <p className="text-xs text-white/60 capitalize">{user?.role}</p>
           </div>
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/10 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-red-500/20 hover:text-red-200 transition-colors"
           >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>
@@ -89,94 +90,48 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Mobile Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-[#001F3F] text-white flex flex-col">
-            <div className="p-6 border-b border-white/10 flex items-center justify-between">
-              <div>
-                <h1 className="text-[#FFD700]">DormSync</h1>
-                <p className="text-sm text-white/70 mt-1">Management System</p>
-              </div>
-              <button onClick={() => setSidebarOpen(false)} className="text-white/80">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            <nav className="flex-1 p-4 space-y-1">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentPage === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      onNavigate(item.id);
-                      setSidebarOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive 
-                        ? 'bg-[#FFD700] text-[#001F3F]' 
-                        : 'text-white/80 hover:bg-white/10'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="p-4 border-t border-white/10">
-              <div className="px-4 py-2 mb-2">
-                <p className="text-sm text-white/90">{user?.name}</p>
-                <p className="text-xs text-white/60 capitalize">{user?.role}</p>
-              </div>
-              <button
-                onClick={logout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-white/80 hover:bg-white/10 transition-colors"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Content Wrapper */}
+      {/* ADDED: ml-64 to push content to the right */}
+      <div className="flex-1 flex flex-col md:ml-64 min-h-screen transition-all duration-300">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-40 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
+              {/* Mobile Menu Button */}
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="md:hidden text-gray-600"
+                className="md:hidden text-gray-600 hover:text-[#001F3F]"
               >
                 <Menu className="w-6 h-6" />
               </button>
-              <h2 className="text-[#001F3F] capitalize">
+              <h2 className="text-[#001F3F] capitalize font-bold text-xl">
                 {currentPage.replace('-', ' ')}
               </h2>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>{new Date().toLocaleDateString('en-US', { 
+            <div className="text-sm text-gray-600 font-medium">
+              {new Date().toLocaleDateString('en-PH', { 
                 weekday: 'long', 
                 year: 'numeric', 
                 month: 'long', 
                 day: 'numeric' 
-              })}</span>
+              })}
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 p-6">
           {children}
         </main>
       </div>
+
+      {/* Mobile Sidebar (Keep your existing code for mobile, just ensure z-index is high) */}
+      {sidebarOpen && (
+         // ... keep your existing mobile sidebar code ...
+         <div className="fixed inset-0 z-[60] md:hidden"> 
+            {/* ... content ... */}
+         </div>
+      )}
     </div>
   );
 }
