@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-    /* Re-defining your custom colors from tailwind.config.js into v4 CSS syntax */
     --color-navy: #001F3F;
     --color-yellow: #FFD700;
-    
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* --- ADD THIS SECTION BELOW --- */
+.swal2-container {
+    z-index: 99999 !important;
+}
+.swal2-popup {
+    font-size: 0.875rem !important;
 }
