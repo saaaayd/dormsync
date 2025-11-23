@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('content');
-            $table->foreignId('created_by')->constrained('users'); // The admin who posted it
+            $table->foreignId('created_by')->constrained('users')->onDelete('cascade'); // The admin who posted it
             $table->enum('priority', ['normal', 'important', 'urgent'])->default('normal');
             $table->timestamps();
         });

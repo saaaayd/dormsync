@@ -1,16 +1,11 @@
 <?php
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PaymentController; // Import the controller
+use App\Http\Controllers\PaymentController;
 
-// Route to get the current user
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-// Payment Routes (Protected by Sanctum authentication)
 Route::middleware('auth:sanctum')->group(function () {
-    // This creates routes for: index (list), store (create), show, update, destroy (delete)
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
     Route::apiResource('payments', PaymentController::class);
 });
