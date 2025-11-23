@@ -88,8 +88,8 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color;
+      (itemConfig as any).theme?.[theme as keyof typeof itemConfig.theme] ||
+      (itemConfig as any).color;
     return color ? `  --color-${key}: ${color};` : null;
   })
   .join("\n")}
@@ -125,6 +125,8 @@ function ChartTooltipContent({
     indicator?: "line" | "dot" | "dashed";
     nameKey?: string;
     labelKey?: string;
+    payload?: any[]; // FIX: Use simple array type
+    label?: any;
   }) {
   const { config } = useChart();
 
@@ -139,7 +141,7 @@ function ChartTooltipContent({
     const value =
       !labelKey && typeof label === "string"
         ? config[label as keyof typeof config]?.label || label
-        : itemConfig?.label;
+        : (itemConfig as any)?.label;
 
     if (labelFormatter) {
       return (
@@ -179,10 +181,11 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item, index) => {
+        {payload.map((item: any, index: number) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
           const indicatorColor = color || item.payload.fill || item.color;
+          const Icon = (itemConfig as any)?.icon; // FIX: Assign to variable
 
           return (
             <div
@@ -196,8 +199,8 @@ function ChartTooltipContent({
                 formatter(item.value, item.name, item, index, item.payload)
               ) : (
                 <>
-                  {itemConfig?.icon ? (
-                    <itemConfig.icon />
+                  {Icon ? (
+                    <Icon />
                   ) : (
                     !hideIndicator && (
                       <div
@@ -229,7 +232,7 @@ function ChartTooltipContent({
                     <div className="grid gap-1.5">
                       {nestLabel ? tooltipLabel : null}
                       <span className="text-muted-foreground">
-                        {itemConfig?.label || item.name}
+                        {(itemConfig as any)?.label || item.name}
                       </span>
                     </div>
                     {item.value && (
@@ -256,11 +259,12 @@ function ChartLegendContent({
   payload,
   verticalAlign = "bottom",
   nameKey,
-}: React.ComponentProps<"div"> &
-  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-    hideIcon?: boolean;
-    nameKey?: string;
-  }) {
+}: React.ComponentProps<"div"> & {
+  payload?: any[]; // FIX: Use simple array type instead of internal LegendPayload
+  verticalAlign?: "top" | "bottom" | "middle";
+  hideIcon?: boolean;
+  nameKey?: string;
+}) {
   const { config } = useChart();
 
   if (!payload?.length) {
@@ -275,9 +279,10 @@ function ChartLegendContent({
         className,
       )}
     >
-      {payload.map((item) => {
+      {payload.map((item: any) => {
         const key = `${nameKey || item.dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
+        const Icon = (itemConfig as any)?.icon; // FIX: Assign to variable
 
         return (
           <div
@@ -286,8 +291,8 @@ function ChartLegendContent({
               "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3",
             )}
           >
-            {itemConfig?.icon && !hideIcon ? (
-              <itemConfig.icon />
+            {Icon && !hideIcon ? (
+              <Icon />
             ) : (
               <div
                 className="h-2 w-2 shrink-0 rounded-[2px]"
@@ -296,7 +301,7 @@ function ChartLegendContent({
                 }}
               />
             )}
-            {itemConfig?.label}
+            {(itemConfig as any)?.label}
           </div>
         );
       })}
