@@ -1,255 +1,142 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios'; // Import Axios
-import { DollarSign, Plus, Download, Filter, Receipt as ReceiptIcon, Trash2 } from 'lucide-react';
-
-// Define the Type locally or import it
-interface Payment {
-  id: number;
-  studentName?: string; // Make optional as backend might send 'student' object
-  student?: { name: string }; // Handle relationship
-  amount: number;
-  type: string;
-  status: 'paid' | 'pending' | 'overdue';
-  due_date: string; // Laravel uses snake_case by default
-  paid_date?: string;
-  notes?: string;
-}
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import { Plus, Filter, Trash2, Edit } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 
 export function PaymentsManagement() {
-  const [payments, setPayments] = useState<Payment[]>([]); // Start empty
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [showReceipt, setShowReceipt] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [students, setStudents] = useState([]); // For dropdown
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Currency Formatter Helper
-  const formatPeso = (amount: number) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-    }).format(amount);
-  };
+  const initialForm = { student_id: '', amount: '', type: 'rent', due_date: '', status: 'pending' };
+  const [formData, setFormData] = useState(initialForm);
 
-  // FETCH DATA from Backend
-  useEffect(() => {
-    fetchPayments();
-  }, []);
+  useEffect(() => { fetchPayments(); fetchStudents(); }, []);
 
   const fetchPayments = async () => {
+    const res = await axios.get('/api/payments');
+    setPayments(res.data);
+  };
+
+  const fetchStudents = async () => {
+    const res = await axios.get('/api/students');
+    setStudents(res.data);
+  };
+
+  const openModal = (payment: any = null) => {
+    if (payment) {
+      setEditingId(payment.id);
+      setFormData({
+        student_id: payment.student_id,
+        amount: payment.amount,
+        type: payment.type,
+        due_date: payment.due_date,
+        status: payment.status
+      });
+    } else {
+      setEditingId(null);
+      setFormData(initialForm);
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
     try {
-      const response = await axios.get('/api/payments');
-      setPayments(response.data);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching payments:", error);
-      setLoading(false);
+      if (editingId) {
+        await axios.put(`/api/payments/${editingId}`, formData);
+        Swal.fire('Success', 'Payment updated.', 'success');
+      } else {
+        await axios.post('/api/payments', formData);
+        Swal.fire('Success', 'Payment recorded.', 'success');
+      }
+      setIsModalOpen(false);
+      fetchPayments();
+    } catch (e) {
+      Swal.fire('Error', 'Operation failed.', 'error');
     }
   };
 
-  // DELETE Payment
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this payment record?")) return;
-
-    try {
+    const res = await Swal.fire({ title: 'Delete?', text: 'Confirm deletion?', icon: 'warning', showCancelButton: true });
+    if (res.isConfirmed) {
       await axios.delete(`/api/payments/${id}`);
-      // Remove from UI immediately
-      setPayments(payments.filter(p => p.id !== id));
-      alert("Payment deleted successfully.");
-    } catch (error) {
-      console.error("Error deleting:", error);
-      alert("Failed to delete payment.");
+      fetchPayments();
+      Swal.fire('Deleted', '', 'success');
     }
-  };
-
-  // Filter Logic
-  const filteredPayments = filterStatus === 'all' 
-    ? payments 
-    : payments.filter(p => p.status === filterStatus);
-
-  // Calculate Totals
-  const calculateTotal = (status: string) => {
-    return payments
-      .filter(p => p.status === status)
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-  };
-
-  const handleViewReceipt = (payment: Payment) => {
-    setSelectedPayment(payment);
-    setShowReceipt(true);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div>
-          <h2 className="text-[#001F3F] text-2xl font-bold">Payment Management</h2>
-          <p className="text-gray-600 text-sm mt-1">Track and manage student payment records</p>
-        </div>
-        <button className="flex items-center gap-2 bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] font-semibold transition-colors">
-          <Plus className="w-5 h-5" />
-          <span>Record Payment</span>
-        </button>
+      <div className="flex justify-between">
+        <h2 className="text-[#001F3F] text-2xl font-bold">Payments</h2>
+        <Button onClick={() => openModal()} className="bg-[#FFD700] text-[#001F3F]"><Plus className="mr-2 h-4 w-4"/>Record Payment</Button>
       </div>
 
-      {/* Stats Cards (Updated with Peso) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-          <p className="text-sm text-gray-600 mb-1">Total Paid</p>
-          <p className="text-2xl font-bold text-green-700">{formatPeso(calculateTotal('paid'))}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
-          <p className="text-sm text-gray-600 mb-1">Pending</p>
-          <p className="text-2xl font-bold text-yellow-700">{formatPeso(calculateTotal('pending'))}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-          <p className="text-sm text-gray-600 mb-1">Overdue</p>
-          <p className="text-2xl font-bold text-red-700">{formatPeso(calculateTotal('overdue'))}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-[#001F3F]">
-          <p className="text-sm text-gray-600 mb-1">Total Records</p>
-          <p className="text-2xl font-bold text-[#001F3F]">{payments.length}</p>
-        </div>
-      </div>
-
-      {/* Filter Buttons */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-600" />
-            <span className="text-sm text-gray-700">Filter by status:</span>
-          </div>
-          <div className="flex gap-2">
-            {['all', 'paid', 'pending', 'overdue'].map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilterStatus(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  filterStatus === status
-                    ? 'bg-[#001F3F] text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Payments Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#001F3F] text-white">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm">Student</th>
-                <th className="px-6 py-3 text-left text-sm">Amount</th>
-                <th className="px-6 py-3 text-left text-sm">Type</th>
-                <th className="px-6 py-3 text-left text-sm">Due Date</th>
-                <th className="px-6 py-3 text-left text-sm">Paid Date</th>
-                <th className="px-6 py-3 text-left text-sm">Status</th>
-                <th className="px-6 py-3 text-left text-sm">Actions</th>
+        <table className="w-full text-sm text-left">
+          <thead className="bg-[#001F3F] text-white">
+            <tr>
+              <th className="px-6 py-3">Student</th>
+              <th className="px-6 py-3">Amount</th>
+              <th className="px-6 py-3">Type</th>
+              <th className="px-6 py-3">Status</th>
+              <th className="px-6 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {payments.map((p: any) => (
+              <tr key={p.id}>
+                <td className="px-6 py-4">{p.student?.name}</td>
+                <td className="px-6 py-4">₱{Number(p.amount).toLocaleString()}</td>
+                <td className="px-6 py-4 capitalize">{p.type}</td>
+                <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded text-xs ${p.status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{p.status}</span>
+                </td>
+                <td className="px-6 py-4 flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => openModal(p)}><Edit className="w-4 h-4"/></Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(p.id)}><Trash2 className="w-4 h-4 text-red-500"/></Button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {loading ? (
-                 <tr><td colSpan={7} className="text-center py-4">Loading records...</td></tr>
-              ) : filteredPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  {/* Handle student name from relationship or direct field */}
-                  <td className="px-6 py-4 font-medium">{payment.student?.name || payment.studentName || 'Unknown'}</td>
-                  <td className="px-6 py-4 font-bold text-[#001F3F]">
-                    {formatPeso(payment.amount)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="capitalize bg-gray-100 px-3 py-1 rounded text-sm">
-                      {payment.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(payment.due_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {payment.paid_date ? new Date(payment.paid_date).toLocaleDateString() : '-'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                      payment.status === 'paid'
-                        ? 'bg-green-100 text-green-700'
-                        : payment.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {payment.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 flex gap-2">
-                    {payment.status === 'paid' && (
-                      <button
-                        onClick={() => handleViewReceipt(payment)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="View Receipt"
-                      >
-                        <ReceiptIcon className="w-5 h-5" />
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => handleDelete(payment.id)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Delete Record"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Receipt Modal (Updated with Peso) */}
-      {showReceipt && selectedPayment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
-            <div className="bg-[#001F3F] text-white px-6 py-4 flex items-center justify-between">
-              <h3 className="font-bold text-lg">Payment Receipt</h3>
-              <button onClick={() => setShowReceipt(false)} className="text-white hover:text-[#FFD700]">✕</button>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editingId ? 'Edit Payment' : 'New Payment'}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div><Label>Student</Label>
+              <select className="w-full border rounded p-2" value={formData.student_id} onChange={e => setFormData({...formData, student_id: e.target.value})}>
+                <option value="">Select Student</option>
+                {students.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
-            
-            <div className="p-8">
-              <div className="text-center mb-8 pb-6 border-b-2 border-[#FFD700]">
-                <h2 className="text-[#001F3F] text-2xl font-bold">DormSync</h2>
-                <p className="text-gray-600 text-sm mt-2">Official Payment Receipt</p>
-              </div>
-
-              <div className="space-y-4 mb-8">
-                <div className="grid grid-cols-2 gap-4">
-                   <div><p className="text-sm text-gray-500">Receipt No.</p><p className="font-mono font-bold text-[#001F3F]">RCP-{selectedPayment.id}</p></div>
-                   <div><p className="text-sm text-gray-500">Date</p><p className="font-bold text-[#001F3F]">{selectedPayment.paid_date}</p></div>
-                </div>
-
-                <div className="bg-[#001F3F] text-white p-6 rounded-lg mt-4">
-                  <div className="flex items-center justify-between">
-                    <span>Amount Paid</span>
-                    <span className="text-3xl font-bold text-[#FFD700]">{formatPeso(selectedPayment.amount)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowReceipt(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
+            <div><Label>Amount</Label><Input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} /></div>
+            <div><Label>Type</Label>
+               <select className="w-full border rounded p-2" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                 <option value="rent">Rent</option>
+                 <option value="utility">Utility</option>
+                 <option value="other">Other</option>
+               </select>
+            </div>
+            <div><Label>Due Date</Label><Input type="date" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} /></div>
+            <div><Label>Status</Label>
+               <select className="w-full border rounded p-2" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                 <option value="pending">Pending</option>
+                 <option value="paid">Paid</option>
+                 <option value="overdue">Overdue</option>
+               </select>
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter><Button onClick={handleSubmit}>Save Record</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

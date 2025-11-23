@@ -22,6 +22,13 @@ class AnnouncementController extends Controller
         ]);
     }
 
+    public function update(Request $request, $id)
+    {
+        $announcement = Announcement::findOrFail($id);
+        $announcement->update($request->all());
+        return $announcement;
+    }
+
     public function destroy($id)
     {
         Announcement::destroy($id);
