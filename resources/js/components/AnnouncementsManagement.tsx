@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import { useAuth } from '../context/AuthContext';
 
 interface AnnouncementDto {
   id: number;
@@ -17,6 +18,8 @@ interface AnnouncementDto {
 }
 
 export function AnnouncementsManagement() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [announcements, setAnnouncements] = useState<AnnouncementDto[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -52,6 +55,7 @@ export function AnnouncementsManagement() {
   };
 
   const handleSubmit = async () => {
+    if (!isAdmin) return;
     if (!formData.title.trim() || !formData.content.trim()) {
       Swal.fire('Missing fields', 'Title and content are required.', 'warning');
       return;
@@ -78,6 +82,7 @@ export function AnnouncementsManagement() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!isAdmin) return;
     const res = await Swal.fire({
       title: 'Delete announcement?',
       text: 'This action cannot be undone.',
@@ -115,13 +120,15 @@ export function AnnouncementsManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-[#001F3F] text-2xl font-bold">Announcements</h2>
-        <Button
-          onClick={() => openModal()}
-          className="bg-[#FFD700] text-[#001F3F] hover:bg-[#FFC700]"
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create
-        </Button>
+        {isAdmin && (
+          <Button
+            onClick={() => openModal()}
+            className="bg-[#FFD700] text-[#001F3F] hover:bg-[#FFC700]"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4">
@@ -148,60 +155,68 @@ export function AnnouncementsManagement() {
                   {new Date(a.created_at).toLocaleDateString()}
                 </div>
               </div>
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => openModal(a)}>
-                  <Edit className="w-4 h-4 text-blue-600" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDelete(a.id)}>
-                  <Trash2 className="w-4 h-4 text-red-500" />
-                </Button>
-              </div>
+              {isAdmin && (
+                <div className="flex gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => openModal(a)}>
+                    <Edit className="w-4 h-4 text-blue-600" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(a.id)}>
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ))}
         {announcements.length === 0 && (
           <div className="text-center text-gray-500 py-12 border border-dashed border-gray-200 rounded-lg">
-            No announcements yet. Click "Create" to post a new announcement.
+            No announcements yet.
+            {isAdmin && ' Click "Create" to post a new announcement.'}
           </div>
         )}
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-white z-[100] border-2 border-gray-200 shadow-xl">
-          <DialogHeader>
-            <DialogTitle>{editingId ? 'Edit Announcement' : 'Create Announcement'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Input
-              placeholder="Title"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-            <select
-              className="w-full border rounded p-2 text-sm"
-              value={formData.priority}
-              onChange={(e) =>
-                setFormData({ ...formData, priority: e.target.value as AnnouncementDto['priority'] })
-              }
-            >
-              <option value="normal">Normal</option>
-              <option value="important">Important</option>
-              <option value="urgent">Urgent</option>
-            </select>
-            <Textarea
-              placeholder="Content"
-              rows={5}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-            />
-          </div>
-          <DialogFooter>
-            <Button onClick={handleSubmit} className="bg-[#001F3F] text-white">
-              {editingId ? 'Save Changes' : 'Post Announcement'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {isAdmin && (
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="bg-white z-[100] border-2 border-gray-200 shadow-xl">
+            <DialogHeader>
+              <DialogTitle>{editingId ? 'Edit Announcement' : 'Create Announcement'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <Input
+                placeholder="Title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+              <select
+                className="w-full border rounded p-2 text-sm"
+                value={formData.priority}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    priority: e.target.value as AnnouncementDto['priority'],
+                  })
+                }
+              >
+                <option value="normal">Normal</option>
+                <option value="important">Important</option>
+                <option value="urgent">Urgent</option>
+              </select>
+              <Textarea
+                placeholder="Content"
+                rows={5}
+                value={formData.content}
+                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              />
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSubmit} className="bg-[#001F3F] text-white">
+                {editingId ? 'Save Changes' : 'Post Announcement'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

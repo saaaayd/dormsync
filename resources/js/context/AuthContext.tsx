@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import axios from 'axios';
+import { User, StudentProfile } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -10,38 +11,37 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demonstration
-const mockUsers: User[] = [
-  {
-    id: 1,
-    name: 'Admin User',
-    email: 'admin@dormsync.com',
-    role: 'admin',
-  },
-  {
-    id: 2,
-    name: 'John Doe',
-    email: 'john@student.com',
-    role: 'student',
-    studentProfile: {
-      id: 1,
-      userId: 2,
-      roomNumber: '101',
-      phoneNumber: '+1-555-0123',
-      emergencyContactName: 'Jane Doe',
-      emergencyContactPhone: '+1-555-0124',
-      enrollmentDate: '2024-01-15',
-      status: 'active',
-    },
-  },
-];
+function mapApiUser(apiUser: any): User {
+  let studentProfile: StudentProfile | undefined;
+
+  if (apiUser.student_profile) {
+    const sp = apiUser.student_profile;
+    studentProfile = {
+      id: sp.id,
+      userId: sp.user_id,
+      roomNumber: sp.room_number,
+      phoneNumber: sp.phone_number,
+      emergencyContactName: sp.emergency_contact_name,
+      emergencyContactPhone: sp.emergency_contact_phone,
+      enrollmentDate: sp.enrollment_date,
+      status: sp.status,
+    };
+  }
+
+  return {
+    id: apiUser.id,
+    name: apiUser.name,
+    email: apiUser.email,
+    role: apiUser.role,
+    studentProfile,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth token
     const storedUser = localStorage.getItem('dormsync_user');
     if (storedUser) {
       setUser(JSON.parse(storedUser));
@@ -50,21 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock login - in production, this would call Laravel API
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const foundUser = mockUsers.find(u => u.email === email);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('dormsync_user', JSON.stringify(foundUser));
-    } else {
-      throw new Error('Invalid credentials');
+    try {
+      const res = await axios.post('/api/auth/login', { email, password });
+      const mapped = mapApiUser(res.data);
+      setUser(mapped);
+      localStorage.setItem('dormsync_user', JSON.stringify(mapped));
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   const logout = () => {

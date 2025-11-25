@@ -9,6 +9,7 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\CleaningScheduleController;
+use App\Http\Controllers\AuthController;
 
 /**
  * NOTE (DEV MODE):
@@ -19,7 +20,11 @@ use App\Http\Controllers\CleaningScheduleController;
  * When you wire up real auth, you can move these back inside the auth:sanctum group.
  */
 
-// Public (no Sanctum) API endpoints for the current mock-auth frontend
+// Auth endpoints (no Sanctum tokens, simple JSON-based auth)
+Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/register', [AuthController::class, 'register']);
+
+// Public (no Sanctum) API endpoints for the current mock-auth/frontend
 Route::apiResource('students', StudentController::class);
 Route::apiResource('payments', PaymentController::class);
 Route::apiResource('maintenance-requests', MaintenanceRequestController::class);
