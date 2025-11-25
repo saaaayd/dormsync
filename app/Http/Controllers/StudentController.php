@@ -11,15 +11,30 @@ class StudentController extends Controller
 {
     public function index()
     {
+        // Fetches users with their profiles
         return User::where('role', 'student')->with('studentProfile')->latest()->get();
     }
 
     public function store(Request $request)
     {
-        // Transaction ensures data integrity
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'room_number' => 'required',
+        ]);
+
         return DB::transaction(function () use ($request) {
+            // Construct full name for display/compatibility
+            $fullName = $request->first_name . ' ' . 
+                       ($request->middle_initial ? $request->middle_initial . '. ' : '') . 
+                       $request->last_name;
+
             $user = User::create([
-                'name' => $request->name,
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'middle_initial' => $request->middle_initial,
+                'name' => $fullName, // Saves the combined name
                 'email' => $request->email,
                 'password' => Hash::make('password'),
                 'role' => 'student',
@@ -43,12 +58,19 @@ class StudentController extends Controller
         $user = User::findOrFail($id);
 
         DB::transaction(function () use ($request, $user) {
+            // Reconstruct full name if changed
+            $fullName = $request->first_name . ' ' . 
+                       ($request->middle_initial ? $request->middle_initial . '. ' : '') . 
+                       $request->last_name;
+
             $user->update([
-                'name' => $request->name,
+                'first_name' => $request->first_name,
+                'last_name' => $request->last_name,
+                'middle_initial' => $request->middle_initial,
+                'name' => $fullName,
                 'email' => $request->email,
             ]);
 
-            // Update profile or create if it doesn't exist
             $user->studentProfile()->updateOrCreate(
                 ['user_id' => $user->id],
                 [

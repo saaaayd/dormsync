@@ -7,10 +7,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 
-// Define the interface for TypeScript safety
 interface Student {
   id: number;
-  name: string;
+  first_name?: string;
+  last_name?: string;
+  middle_initial?: string;
+  name: string; // fallback full name
   email: string;
   student_profile?: {
     room_number: string;
@@ -29,13 +31,20 @@ export function StudentsManagement() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
+  // Updated initial form state
   const initialForm = {
-    name: '', email: '', room_number: '', phone_number: '',
-    emergency_contact_name: '', emergency_contact_phone: '', status: 'active'
+    first_name: '', 
+    last_name: '', 
+    middle_initial: '',
+    email: '', 
+    room_number: '', 
+    phone_number: '',
+    emergency_contact_name: '', 
+    emergency_contact_phone: '', 
+    status: 'active'
   };
   const [formData, setFormData] = useState(initialForm);
 
-  // FETCH Students
   useEffect(() => { 
     fetchStudents(); 
   }, []);
@@ -49,18 +58,19 @@ export function StudentsManagement() {
     }
   };
 
-  // OPEN MODAL (Add or Edit)
-  const openModal = (student: any = null) => {
+  const openModal = (student: Student | null = null) => {
     if (student) {
       setEditingId(student.id);
       setFormData({
-        name: student.name,
+        first_name: student.first_name || '',
+        last_name: student.last_name || '',
+        middle_initial: student.middle_initial || '',
         email: student.email,
         room_number: student.student_profile?.room_number || '',
         phone_number: student.student_profile?.phone_number || '',
         emergency_contact_name: student.student_profile?.emergency_contact_name || '',
         emergency_contact_phone: student.student_profile?.emergency_contact_phone || '',
-        status: student.student_profile?.status || 'active'
+        status: student.student_profile?.status || 'active' as any
       });
     } else {
       setEditingId(null);
@@ -69,18 +79,23 @@ export function StudentsManagement() {
     setIsModalOpen(true);
   };
 
-  // SUBMIT FORM (Create or Update)
   const handleSubmit = async () => {
+    // Basic validation
+    if (!formData.first_name || !formData.last_name || !formData.room_number) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Missing Fields',
+            text: 'Please fill in First Name, Last Name, and Room Number.',
+            confirmButtonColor: '#001F3F'
+        });
+        return;
+    }
+
     setLoading(true);
     try {
       if (editingId) {
-        // UPDATE Existing Student
         await axios.put(`/api/students/${editingId}`, formData);
-        
-        // CRITICAL FIX: Close modal BEFORE showing alert to prevent focus trap
-        setIsModalOpen(false);
-        
-        // Small delay to ensure modal is gone before alert triggers
+        setIsModalOpen(false); // Close first
         setTimeout(() => {
             Swal.fire({
                 icon: 'success', 
@@ -89,14 +104,9 @@ export function StudentsManagement() {
                 confirmButtonColor: '#001F3F'
             });
         }, 100);
-
       } else {
-        // CREATE New Student
         await axios.post('/api/students', formData);
-        
-        // CRITICAL FIX: Close modal BEFORE showing alert
-        setIsModalOpen(false);
-        
+        setIsModalOpen(false); // Close first
         setTimeout(() => {
             Swal.fire({
                 icon: 'success', 
@@ -112,7 +122,6 @@ export function StudentsManagement() {
       setEditingId(null);
     } catch (error: any) {
       console.error(error);
-      // Keep modal open if there is an error so user can fix it
       Swal.fire({
         icon: 'error', 
         title: 'Error', 
@@ -124,7 +133,6 @@ export function StudentsManagement() {
     }
   };
 
-  // DELETE Student
   const handleDelete = async (id: number) => {
     const result = await Swal.fire({
       title: 'Are you sure?',
@@ -152,7 +160,6 @@ export function StudentsManagement() {
     }
   };
 
-  // Search Filter
   const filtered = students.filter((s) => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     s.student_profile?.room_number?.includes(searchTerm)
@@ -167,7 +174,6 @@ export function StudentsManagement() {
         </Button>
       </div>
 
-      {/* Search Bar */}
       <div className="bg-white p-4 rounded-lg shadow border border-gray-100">
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -180,7 +186,6 @@ export function StudentsManagement() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-100">
         <table className="w-full text-sm text-left">
           <thead className="bg-[#001F3F] text-white uppercase text-xs">
@@ -231,9 +236,7 @@ export function StudentsManagement() {
         </table>
       </div>
 
-      {/* Modal Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        {/* ADDED: bg-white, z-[100], and border classes to ensure visibility */}
         <DialogContent className="sm:max-w-[600px] bg-white z-[100] border-2 border-gray-200 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-[#001F3F] text-xl">
@@ -242,23 +245,47 @@ export function StudentsManagement() {
           </DialogHeader>
           
           <div className="grid grid-cols-2 gap-4 py-4">
-            <div className="col-span-2">
-                <Label>Full Name</Label>
-                <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Juan Dela Cruz" />
+            {/* SPLIT NAME FIELDS */}
+            <div>
+                <Label>First Name <span className="text-red-500">*</span></Label>
+                <Input 
+                    value={formData.first_name} 
+                    onChange={e => setFormData({...formData, first_name: e.target.value})} 
+                    placeholder="e.g. Juan" 
+                />
             </div>
             <div>
+                <Label>Middle Initial</Label>
+                <Input 
+                    value={formData.middle_initial} 
+                    onChange={e => setFormData({...formData, middle_initial: e.target.value})} 
+                    placeholder="e.g. D" 
+                    maxLength={2}
+                />
+            </div>
+            <div className="col-span-2">
+                <Label>Last Name <span className="text-red-500">*</span></Label>
+                <Input 
+                    value={formData.last_name} 
+                    onChange={e => setFormData({...formData, last_name: e.target.value})} 
+                    placeholder="e.g. Dela Cruz" 
+                />
+            </div>
+
+            {/* OTHER FIELDS */}
+            <div className="col-span-2">
                 <Label>Email Address</Label>
                 <Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="student@school.edu" />
             </div>
             <div>
-                <Label>Room Number</Label>
+                <Label>Room Number <span className="text-red-500">*</span></Label>
                 <Input value={formData.room_number} onChange={e => setFormData({...formData, room_number: e.target.value})} placeholder="e.g. 101-A" />
             </div>
             <div>
                 <Label>Phone Number</Label>
                 <Input value={formData.phone_number} onChange={e => setFormData({...formData, phone_number: e.target.value})} placeholder="0912 345 6789" />
             </div>
-            <div>
+            <div className="col-span-2">
                 <Label>Status</Label>
                 <select 
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"

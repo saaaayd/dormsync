@@ -13,7 +13,15 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            
+            // NEW FIELDS ADDED HERE
+            $table->string('first_name')->nullable();
+            $table->string('last_name')->nullable();
+            $table->string('middle_initial')->nullable();
+            
+            // UPDATED: Made nullable so it doesn't cause "Field 'name' doesn't have a default value" error
+            $table->string('name')->nullable(); 
+            
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
