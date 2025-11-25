@@ -1,17 +1,109 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
 import { Calendar, Clock, UserCheck, UserX, AlertCircle } from 'lucide-react';
-import { mockAttendance } from '../data/mockData';
-import { AttendanceLog } from '../types';
+
+interface AttendanceLogDto {
+  id: number;
+  student_id: number;
+  student: { id: number; name: string; student_profile?: { room_number?: string } } | null;
+  date: string;
+  check_in?: string | null;
+  check_out?: string | null;
+  status: 'present' | 'absent' | 'late';
+}
+
+interface StudentOption {
+  id: number;
+  name: string;
+  student_profile?: { room_number?: string };
+}
 
 export function AttendanceManagement() {
-  const [attendance] = useState<AttendanceLog[]>(mockAttendance);
+  const [attendance, setAttendance] = useState<AttendanceLogDto[]>([]);
+  const [students, setStudents] = useState<StudentOption[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
-  const filteredAttendance = attendance.filter(a => a.date === selectedDate);
-  
+  useEffect(() => {
+    fetchAttendance(selectedDate);
+    fetchStudents();
+  }, []);
+
+  useEffect(() => {
+    fetchAttendance(selectedDate);
+  }, [selectedDate]);
+
+  const fetchAttendance = async (date: string) => {
+    try {
+      const res = await axios.get('/api/attendance', { params: { date } });
+      setAttendance(res.data);
+    } catch (error) {
+      console.error('Error fetching attendance', error);
+      Swal.fire('Error', 'Failed to load attendance logs.', 'error');
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const res = await axios.get('/api/students');
+      setStudents(res.data);
+    } catch (error) {
+      console.error('Error fetching students', error);
+    }
+  };
+
+  const filteredAttendance = attendance;
+
   const presentCount = filteredAttendance.filter(a => a.status === 'present').length;
   const lateCount = filteredAttendance.filter(a => a.status === 'late').length;
   const absentCount = filteredAttendance.filter(a => a.status === 'absent').length;
+
+  const handleRecord = async (type: 'check_in' | 'check_out') => {
+    if (!selectedStudentId) {
+      Swal.fire('Select student', 'Please choose a student to record attendance for.', 'warning');
+      return;
+    }
+
+    try {
+      const payload = {
+        student_id: Number(selectedStudentId),
+        date: selectedDate,
+        status: 'present',
+        [type]: new Date().toISOString().slice(11, 19), // HH:MM:SS
+      };
+
+      // Try to find existing log for this student/date
+      const existing = attendance.find(
+        a => a.student_id === Number(selectedStudentId) && a.date === selectedDate
+      );
+
+      if (existing) {
+        await axios.put(`/api/attendance/${existing.id}`, payload);
+      } else {
+        await axios.post('/api/attendance', payload);
+      }
+
+      await fetchAttendance(selectedDate);
+      Swal.fire(
+        'Recorded',
+        type === 'check_in' ? 'Check-in recorded successfully.' : 'Check-out recorded successfully.',
+        'success'
+      );
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire('Error', error.response?.data?.message || 'Failed to record attendance.', 'error');
+    }
+  };
+
+  const formatTime = (time?: string | null) => {
+    if (!time) return null;
+    // time is HH:MM:SS from DB; create a Date for formatting
+    const [h, m, s] = time.split(':');
+    const d = new Date();
+    d.setHours(Number(h), Number(m), Number(s || 0));
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="space-y-6">
@@ -21,8 +113,8 @@ export function AttendanceManagement() {
         <p className="text-gray-600 text-sm mt-1">Track student check-in and check-out logs</p>
       </div>
 
-      {/* Date Selector */}
-      <div className="bg-white rounded-lg shadow p-4">
+      {/* Date & Student Selector */}
+      <div className="bg-white rounded-lg shadow p-4 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <Calendar className="w-5 h-5 text-gray-600" />
           <label className="text-sm text-gray-700">Select Date:</label>
@@ -32,6 +124,21 @@ export function AttendanceManagement() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFD700] focus:border-transparent outline-none"
           />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-gray-700">Student:</label>
+          <select
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            value={selectedStudentId}
+            onChange={(e) => setSelectedStudentId(e.target.value)}
+          >
+            <option value="">Select student</option>
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -68,11 +175,12 @@ export function AttendanceManagement() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b">
           <h3 className="text-[#001F3F]">
-            Attendance Log - {new Date(selectedDate).toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
+            Attendance Log -{' '}
+            {new Date(selectedDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
             })}
           </h3>
         </div>
@@ -85,80 +193,80 @@ export function AttendanceManagement() {
                 <th className="px-6 py-3 text-left text-sm">Check-In Time</th>
                 <th className="px-6 py-3 text-left text-sm">Check-Out Time</th>
                 <th className="px-6 py-3 text-left text-sm">Status</th>
-                <th className="px-6 py-3 text-left text-sm">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredAttendance.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#001F3F] text-white rounded-full flex items-center justify-center text-sm">
-                        {log.studentName.split(' ').map(n => n[0]).join('')}
+              {filteredAttendance.map((log) => {
+                const name = log.student?.name || 'Unknown';
+                const initials = name
+                  .split(' ')
+                  .filter(Boolean)
+                  .map((n) => n[0])
+                  .join('');
+                const room = log.student?.student_profile?.room_number || 'N/A';
+
+                return (
+                  <tr key={log.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-[#001F3F] text-white rounded-full flex items-center justify-center text-sm">
+                          {initials}
+                        </div>
+                        <span>{name}</span>
                       </div>
-                      <span>{log.studentName}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-gray-100 px-3 py-1 rounded text-sm">{log.roomNumber}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {log.checkIn ? (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        {new Date(log.checkIn).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {log.checkOut ? (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-500" />
-                        {new Date(log.checkOut).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
-                      log.status === 'present'
-                        ? 'bg-green-100 text-green-700'
-                        : log.status === 'late'
-                        ? 'bg-orange-100 text-orange-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {log.status === 'present' ? (
-                        <UserCheck className="w-3 h-3" />
-                      ) : log.status === 'late' ? (
-                        <Clock className="w-3 h-3" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="bg-gray-100 px-3 py-1 rounded text-sm">{room}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {formatTime(log.check_in) ? (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          {formatTime(log.check_in)}
+                        </div>
                       ) : (
-                        <UserX className="w-3 h-3" />
+                        <span className="text-gray-400">-</span>
                       )}
-                      {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-sm text-blue-600 hover:text-blue-700">
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {formatTime(log.check_out) ? (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          {formatTime(log.check_out)}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
+                          log.status === 'present'
+                            ? 'bg-green-100 text-green-700'
+                            : log.status === 'late'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {log.status === 'present' ? (
+                          <UserCheck className="w-3 h-3" />
+                        ) : log.status === 'late' ? (
+                          <Clock className="w-3 h-3" />
+                        ) : (
+                          <UserX className="w-3 h-3" />
+                        )}
+                        {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Curfew Info */}
+      {/* Curfew Info + quick record */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-start gap-4">
           <div className="bg-[#FFD700] text-[#001F3F] p-3 rounded-lg">
@@ -167,14 +275,20 @@ export function AttendanceManagement() {
           <div>
             <h3 className="text-[#001F3F] mb-2">Curfew Policy</h3>
             <p className="text-gray-600 text-sm">
-              All students must check in by 10:00 PM on weekdays and 11:00 PM on weekends. 
+              All students must check in by 10:00 PM on weekdays and 11:00 PM on weekends.
               Late arrivals after curfew will be marked as "Late" and may be subject to disciplinary action.
             </p>
             <div className="mt-4 flex gap-4">
-              <button className="bg-[#001F3F] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors text-sm">
+              <button
+                onClick={() => handleRecord('check_in')}
+                className="bg-[#001F3F] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors text-sm"
+              >
                 Record Check-In
               </button>
-              <button className="bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] transition-colors text-sm">
+              <button
+                onClick={() => handleRecord('check_out')}
+                className="bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] transition-colors text-sm"
+              >
                 Record Check-Out
               </button>
             </div>

@@ -1,17 +1,135 @@
-import React, { useState } from 'react';
-import { Calendar, Plus, CheckCircle, Clock } from 'lucide-react';
-import { mockCleaningSchedule } from '../data/mockData';
-import { CleaningSchedule as CleaningScheduleType } from '../types';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+import { Calendar, Plus, CheckCircle, Clock, Trash2, Edit } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
+
+interface CleaningScheduleDto {
+  id: number;
+  area: string;
+  assigned_to: string;
+  scheduled_date: string;
+  status: 'pending' | 'completed';
+  notes?: string | null;
+}
 
 export function CleaningSchedule() {
-  const [schedules] = useState<CleaningScheduleType[]>(mockCleaningSchedule);
+  const [schedules, setSchedules] = useState<CleaningScheduleDto[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [formData, setFormData] = useState({
+    area: '',
+    assigned_to: '',
+    scheduled_date: new Date().toISOString().split('T')[0],
+    status: 'pending' as 'pending' | 'completed',
+    notes: '',
+  });
+
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
+
+  const fetchSchedules = async () => {
+    try {
+      const res = await axios.get('/api/cleaning-schedule');
+      setSchedules(res.data);
+    } catch (error) {
+      console.error('Error fetching cleaning schedules', error);
+      Swal.fire('Error', 'Failed to load cleaning tasks.', 'error');
+    }
+  };
 
   const pendingTasks = schedules.filter(s => s.status === 'pending');
   const completedTasks = schedules.filter(s => s.status === 'completed');
-  const todayTasks = schedules.filter(s => 
-    new Date(s.scheduledDate).toDateString() === new Date().toDateString()
+  const todayTasks = schedules.filter(
+    s => new Date(s.scheduled_date).toDateString() === new Date().toDateString()
   );
+
+  const openModal = (task: CleaningScheduleDto | null = null) => {
+    if (task) {
+      setEditingId(task.id);
+      setFormData({
+        area: task.area,
+        assigned_to: task.assigned_to,
+        scheduled_date: task.scheduled_date,
+        status: task.status,
+        notes: task.notes || '',
+      });
+    } else {
+      setEditingId(null);
+      setFormData({
+        area: '',
+        assigned_to: '',
+        scheduled_date: new Date().toISOString().split('T')[0],
+        status: 'pending',
+        notes: '',
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.area || !formData.assigned_to || !formData.scheduled_date) {
+      Swal.fire('Missing fields', 'Area, Assigned To, and Scheduled Date are required.', 'warning');
+      return;
+    }
+
+    try {
+      if (editingId) {
+        await axios.put(`/api/cleaning-schedule/${editingId}`, formData);
+        Swal.fire('Updated', 'Cleaning task updated successfully.', 'success');
+      } else {
+        await axios.post('/api/cleaning-schedule', formData);
+        Swal.fire('Created', 'Cleaning task created successfully.', 'success');
+      }
+      setIsModalOpen(false);
+      await fetchSchedules();
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire('Error', error.response?.data?.message || 'Failed to save cleaning task.', 'error');
+    }
+  };
+
+  const handleMarkComplete = async (task: CleaningScheduleDto) => {
+    try {
+      await axios.put(`/api/cleaning-schedule/${task.id}`, {
+        ...task,
+        status: 'completed',
+      });
+      await fetchSchedules();
+      Swal.fire('Completed', 'Task marked as completed.', 'success');
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'Failed to update task.', 'error');
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    const res = await Swal.fire({
+      title: 'Delete task?',
+      text: 'This action cannot be undone.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, delete it',
+    });
+    if (res.isConfirmed) {
+      try {
+        await axios.delete(`/api/cleaning-schedule/${id}`);
+        await fetchSchedules();
+        Swal.fire('Deleted', 'Cleaning task removed.', 'success');
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'Failed to delete task.', 'error');
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -22,10 +140,13 @@ export function CleaningSchedule() {
           <p className="text-gray-600 text-sm mt-1">Manage and track dormitory cleaning tasks</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] transition-colors">
+          <Button
+            onClick={() => openModal()}
+            className="flex items-center gap-2 bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] transition-colors"
+          >
             <Plus className="w-5 h-5" />
             <span>Add Task</span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -103,11 +224,11 @@ export function CleaningSchedule() {
                 {schedules.map((schedule) => (
                   <tr key={schedule.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">{schedule.area}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{schedule.assignedTo}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{schedule.assigned_to}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-500" />
-                        {new Date(schedule.scheduledDate).toLocaleDateString('en-US', {
+                        {new Date(schedule.scheduled_date).toLocaleDateString('en-US', {
                           weekday: 'short',
                           month: 'short',
                           day: 'numeric',
@@ -115,11 +236,13 @@ export function CleaningSchedule() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
-                        schedule.status === 'completed'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-orange-100 text-orange-700'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs ${
+                          schedule.status === 'completed'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }`}
+                      >
                         {schedule.status === 'completed' ? (
                           <CheckCircle className="w-3 h-3" />
                         ) : (
@@ -131,12 +254,30 @@ export function CleaningSchedule() {
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {schedule.notes || '-'}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openModal(schedule)}
+                      >
+                        <Edit className="w-4 h-4 text-blue-600" />
+                      </Button>
                       {schedule.status === 'pending' && (
-                        <button className="text-sm text-green-600 hover:text-green-700">
-                          Mark Complete
-                        </button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMarkComplete(schedule)}
+                        >
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(schedule.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -150,8 +291,8 @@ export function CleaningSchedule() {
       {viewMode === 'calendar' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Grouped by Date */}
-          {Array.from(new Set(schedules.map(s => s.scheduledDate))).map(date => {
-            const tasksForDate = schedules.filter(s => s.scheduledDate === date);
+          {Array.from(new Set(schedules.map(s => s.scheduled_date))).map(date => {
+            const tasksForDate = schedules.filter(s => s.scheduled_date === date);
             return (
               <div key={date} className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-200">
@@ -179,22 +320,27 @@ export function CleaningSchedule() {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h4 className="text-[#001F3F]">{schedule.area}</h4>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          schedule.status === 'completed'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-orange-100 text-orange-700'
-                        }`}>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            schedule.status === 'completed'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-orange-100 text-orange-700'
+                          }`}
+                        >
                           {schedule.status}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Assigned to: {schedule.assignedTo}
+                        Assigned to: {schedule.assigned_to}
                       </p>
                       {schedule.notes && (
                         <p className="text-sm text-gray-700">{schedule.notes}</p>
                       )}
                       {schedule.status === 'pending' && (
-                        <button className="mt-3 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors">
+                        <button
+                          className="mt-3 text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors"
+                          onClick={() => handleMarkComplete(schedule)}
+                        >
                           Mark as Complete
                         </button>
                       )}
@@ -206,6 +352,64 @@ export function CleaningSchedule() {
           })}
         </div>
       )}
+
+      {/* Modal for create / edit */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="bg-white z-[100] border-2 border-gray-200 shadow-xl">
+          <DialogHeader>
+            <DialogTitle>{editingId ? 'Edit Cleaning Task' : 'New Cleaning Task'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Area</Label>
+              <Input
+                value={formData.area}
+                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Assigned To</Label>
+              <Input
+                value={formData.assigned_to}
+                onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Scheduled Date</Label>
+              <Input
+                type="date"
+                value={formData.scheduled_date}
+                onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select
+                className="w-full border rounded p-2"
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value as 'pending' | 'completed' })
+                }
+              >
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSubmit} className="bg-[#001F3F]">
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

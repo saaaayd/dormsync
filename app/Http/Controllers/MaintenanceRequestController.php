@@ -4,37 +4,53 @@ namespace App\Http\Controllers;
 
 use App\Models\MaintenanceRequest;
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class MaintenanceRequestController extends Controller
 {
     public function index(Request $request)
     {
-        $query = MaintenanceRequest::with('student');
-        
-        // If logged in user is a student, only show their requests
-        if ($request->user()->role === 'student') {
-            $query->where('student_id', $request->user()->id);
-        }
-
-        return $query->latest()->get();
+        // For now, expose all maintenance requests (admin dashboard view).
+        // When real auth is wired, you can re-introduce per-student scoping.
+        return MaintenanceRequest::with('student')->latest()->get();
     }
 
     public function store(Request $request)
     {
-        return MaintenanceRequest::create([
-            'student_id' => $request->user()->id,
-            'title' => $request->title,
-            'description' => $request->description,
-            'urgency' => $request->urgency,
-            'room_number' => $request->user()->studentProfile->room_number ?? 'N/A',
-            'status' => 'pending'
+        $validated = $request->validate([
+            'student_id'   => 'required|exists:users,id',
+            'title'        => 'required|string|max:255',
+            'description'  => 'required|string',
+            'urgency'      => 'required|in:low,medium,high',
+            'room_number'  => 'nullable|string',
+            'status'       => 'nullable|in:pending,in-progress,resolved',
         ]);
+
+        // If room_number not provided, fall back to student's profile room
+        if (empty($validated['room_number'])) {
+            $student = User::with('studentProfile')->find($validated['student_id']);
+            $validated['room_number'] = $student?->studentProfile->room_number ?? 'N/A';
+        }
+
+        // Default status
+        if (empty($validated['status'])) {
+            $validated['status'] = 'pending';
+        }
+
+        return MaintenanceRequest::create($validated);
     }
 
     public function update(Request $request, $id)
     {
         $maintenance = MaintenanceRequest::findOrFail($id);
-        $maintenance->update($request->all());
+        $maintenance->update($request->only([
+            'student_id',
+            'title',
+            'description',
+            'urgency',
+            'status',
+            'room_number',
+        ]));
         return $maintenance;
     }
 

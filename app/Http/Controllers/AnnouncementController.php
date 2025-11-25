@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class AnnouncementController extends Controller
@@ -14,18 +15,34 @@ class AnnouncementController extends Controller
 
     public function store(Request $request)
     {
-        return Announcement::create([
-            'title' => $request->title,
-            'content' => $request->content,
-            'priority' => $request->priority,
-            'created_by' => $request->user()->id
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'priority' => 'required|in:normal,important,urgent',
         ]);
+
+        // In the current mock-auth setup there is no authenticated user,
+        // so we attach the announcement to the first available user
+        // (typically the admin account). This avoids NOT NULL constraint errors.
+        $creatorId = User::query()->value('id');
+        if (!$creatorId) {
+            return response()->json([
+                'message' => 'No users exist to attach as announcement creator.',
+            ], 422);
+        }
+        $validated['created_by'] = $creatorId;
+
+        return Announcement::create($validated);
     }
 
     public function update(Request $request, $id)
     {
         $announcement = Announcement::findOrFail($id);
-        $announcement->update($request->all());
+        $announcement->update($request->only([
+            'title',
+            'content',
+            'priority',
+        ]));
         return $announcement;
     }
 
