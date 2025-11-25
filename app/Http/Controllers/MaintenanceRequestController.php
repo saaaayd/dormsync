@@ -10,9 +10,13 @@ class MaintenanceRequestController extends Controller
 {
     public function index(Request $request)
     {
-        // For now, expose all maintenance requests (admin dashboard view).
-        // When real auth is wired, you can re-introduce per-student scoping.
-        return MaintenanceRequest::with('student')->latest()->get();
+        $query = MaintenanceRequest::with('student')->latest();
+
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->query('student_id'));
+        }
+
+        return $query->get();
     }
 
     public function store(Request $request)

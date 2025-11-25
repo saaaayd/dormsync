@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
@@ -243,38 +244,103 @@ function StudentPayments() {
 }
 
 function StudentMaintenance() {
-  const [showForm, setShowForm] = useState(false);
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    urgency: 'low',
+  });
+
+  const fetchRequests = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/maintenance-requests', {
+        params: { student_id: user.id },
+      });
+      setRequests(res.data);
+    } catch (error) {
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, [user?.id]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim() || !formData.description.trim()) {
+      Swal.fire('Missing fields', 'Please fill in title and description.', 'warning');
+      return;
+    }
+
+    try {
+      await axios.post('/api/maintenance-requests', {
+        student_id: user?.id,
+        title: formData.title,
+        description: formData.description,
+        urgency: formData.urgency,
+        room_number: user?.studentProfile?.roomNumber,
+      });
+      Swal.fire('Submitted', 'Your maintenance request has been sent.', 'success');
+      setFormData({ title: '', description: '', urgency: 'low' });
+      setIsFormOpen(false);
+      fetchRequests();
+    } catch (error) {
+      Swal.fire('Error', 'Failed to submit request.', 'error');
+    }
+  };
+
+  const statusColor = (status: string) => {
+    if (status === 'resolved') return 'bg-green-100 text-green-700';
+    if (status === 'in-progress') return 'bg-blue-100 text-blue-700';
+    return 'bg-yellow-100 text-yellow-700';
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
           <h2 className="text-[#001F3F]">Maintenance Requests</h2>
-          <p className="text-gray-600 text-sm mt-1">Submit and track your maintenance requests</p>
+          <p className="text-gray-600 text-sm mt-1">
+            Submit and track your maintenance requests
+          </p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => setIsFormOpen(true)}
           className="flex items-center gap-2 bg-[#FFD700] text-[#001F3F] px-4 py-2 rounded-lg hover:bg-[#FFC700] transition-colors"
         >
           Submit Request
         </button>
       </div>
 
-      {showForm && (
+      {isFormOpen && (
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-[#001F3F] mb-4">New Maintenance Request</h3>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div>
               <label className="block text-sm text-gray-700 mb-2">Title</label>
               <input
                 type="text"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFD700] focus:border-transparent outline-none"
                 placeholder="Brief description of the issue"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               />
             </div>
             <div>
               <label className="block text-sm text-gray-700 mb-2">Urgency Level</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFD700] focus:border-transparent outline-none">
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFD700] focus:border-transparent outline-none"
+                value={formData.urgency}
+                onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
+              >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
@@ -286,6 +352,8 @@ function StudentMaintenance() {
                 rows={4}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FFD700] focus:border-transparent outline-none"
                 placeholder="Provide detailed information about the issue"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
             <div className="flex gap-3">
@@ -297,7 +365,7 @@ function StudentMaintenance() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={() => setIsFormOpen(false)}
                 className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
@@ -307,8 +375,39 @@ function StudentMaintenance() {
         </div>
       )}
 
-      <div className="text-center py-12 text-gray-500">
-        <p>Your maintenance requests will appear here</p>
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-[#001F3F] mb-4">My Requests</h3>
+        {loading ? (
+          <p className="text-gray-500 text-sm">Loading requests...</p>
+        ) : requests.length === 0 ? (
+          <p className="text-gray-500 text-sm">You haven’t submitted any requests yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="border rounded-lg p-4 flex flex-col gap-2"
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-[#001F3F] font-semibold">{req.title}</h4>
+                    <p className="text-sm text-gray-500">
+                      Submitted on {new Date(req.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`text-xs px-3 py-1 rounded-full ${statusColor(req.status)}`}>
+                    {req.status}
+                  </span>
+                </div>
+                <p className="text-gray-700 text-sm">{req.description}</p>
+                <div className="text-xs text-gray-500 flex gap-3">
+                  <span className="capitalize">Urgency: {req.urgency}</span>
+                  <span>Room: {req.room_number || user?.studentProfile?.roomNumber || 'N/A'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
