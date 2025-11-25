@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { Layout } from './components/Layout';
@@ -130,92 +131,111 @@ function StudentProfile() {
 
 function StudentPayments() {
   const { user } = useAuth();
-  const [payments] = useState([
-    {
-      id: 1,
-      amount: 500,
-      type: 'rent',
-      status: 'paid',
-      dueDate: '2024-11-01',
-      paidDate: '2024-10-28',
-      notes: 'November rent payment',
-    },
-    {
-      id: 2,
-      amount: 500,
-      type: 'rent',
-      status: 'pending',
-      dueDate: '2024-12-01',
-      notes: 'December rent payment',
-    },
-    {
-      id: 4,
-      amount: 100,
-      type: 'utilities',
-      status: 'paid',
-      dueDate: '2024-11-15',
-      paidDate: '2024-11-10',
-      notes: 'Electricity and water',
-    },
-  ]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalDue = payments
-    .filter(p => p.status === 'pending')
-    .reduce((sum, p) => sum + p.amount, 0);
+  const currencyFormatter = new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+  });
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      if (!user?.id) return;
+      setLoading(true);
+      try {
+        const res = await axios.get('/api/payments', {
+          params: { student_id: user.id },
+        });
+        setPayments(res.data);
+      } catch (error) {
+        setPayments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayments();
+  }, [user?.id]);
+
+  const pendingPayments = payments.filter((p) => p.status === 'pending');
+  const totalDue = pendingPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-[#001F3F]">My Payments</h2>
-        <p className="text-gray-600 text-sm mt-1">View your payment history and outstanding balance</p>
+        <p className="text-gray-600 text-sm mt-1">
+          View your payment history and outstanding balance
+        </p>
       </div>
 
       <div className="bg-gradient-to-r from-[#001F3F] to-[#003366] text-white rounded-lg shadow-lg p-6">
         <p className="text-white/80 mb-2">Current Balance</p>
-        <p className="text-4xl text-[#FFD700] mb-1">${totalDue}</p>
+        <p className="text-4xl text-[#FFD700] mb-1">
+          {currencyFormatter.format(totalDue)}
+        </p>
         <p className="text-white/80 text-sm">
-          {payments.filter(p => p.status === 'pending').length} pending payment(s)
+          {pendingPayments.length} pending payment(s)
         </p>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-[#001F3F] text-white">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm">Type</th>
-                <th className="px-6 py-3 text-left text-sm">Amount</th>
-                <th className="px-6 py-3 text-left text-sm">Due Date</th>
-                <th className="px-6 py-3 text-left text-sm">Status</th>
-                <th className="px-6 py-3 text-left text-sm">Notes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {payments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <span className="capitalize bg-gray-100 px-3 py-1 rounded text-sm">
-                      {payment.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">${payment.amount}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(payment.dueDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded text-xs ${
-                      payment.status === 'paid'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {payment.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{payment.notes}</td>
+          {loading ? (
+            <div className="p-6 text-center text-gray-500">Loading payments...</div>
+          ) : payments.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No payments have been posted for your account yet.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-[#001F3F] text-white">
+                <tr>
+                  <th className="px-6 py-3 text-left text-sm">Type</th>
+                  <th className="px-6 py-3 text-left text-sm">Amount</th>
+                  <th className="px-6 py-3 text-left text-sm">Due Date</th>
+                  <th className="px-6 py-3 text-left text-sm">Status</th>
+                  <th className="px-6 py-3 text-left text-sm">Notes</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {payments.map((payment) => (
+                  <tr key={payment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <span className="capitalize bg-gray-100 px-3 py-1 rounded text-sm">
+                        {payment.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {currencyFormatter.format(Number(payment.amount || 0))}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {payment.due_date
+                        ? new Date(payment.due_date).toLocaleDateString()
+                        : '--'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`px-3 py-1 rounded text-xs ${
+                          payment.status === 'paid'
+                            ? 'bg-green-100 text-green-700'
+                            : payment.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {payment.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {payment.notes || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

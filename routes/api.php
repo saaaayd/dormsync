@@ -26,6 +26,7 @@ Route::post('auth/register', [AuthController::class, 'register']);
 
 // Public (no Sanctum) API endpoints for the current mock-auth/frontend
 Route::apiResource('students', StudentController::class);
+Route::post('payments/bulk', [PaymentController::class, 'bulkStore']);
 Route::apiResource('payments', PaymentController::class);
 Route::apiResource('maintenance-requests', MaintenanceRequestController::class);
 Route::apiResource('announcements', AnnouncementController::class);
