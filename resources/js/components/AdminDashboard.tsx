@@ -1,11 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Users, Wrench, Calendar, DollarSign, TrendingUp, AlertCircle } from 'lucide-react';
-import { mockDashboardStats, mockAnnouncements, mockMaintenanceRequests } from '../data/mockData';
+
+interface DashboardStats {
+  totalStudents: number;
+  pendingMaintenance: number;
+  pendingCleaning: number;
+  overduePayments: number;
+}
+
+interface DashboardAnnouncement {
+  id: number;
+  title: string;
+  content: string;
+  priority: 'normal' | 'important' | 'urgent';
+  created_at: string;
+}
+
+interface DashboardMaintenance {
+  id: number;
+  title: string;
+  description: string;
+  urgency: 'low' | 'medium' | 'high';
+  status: string;
+  room_number?: string;
+  created_at: string;
+  student?: { name: string };
+}
 
 export function AdminDashboard() {
-  const stats = mockDashboardStats;
-  const recentAnnouncements = mockAnnouncements.slice(0, 3);
-  const urgentMaintenance = mockMaintenanceRequests.filter(r => r.urgency === 'high' && r.status !== 'resolved');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentAnnouncements, setRecentAnnouncements] = useState<DashboardAnnouncement[]>([]);
+  const [urgentMaintenance, setUrgentMaintenance] = useState<DashboardMaintenance[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await axios.get('/api/dashboard/stats');
+        setStats(res.data.stats);
+        setRecentAnnouncements(res.data.recentAnnouncements || []);
+        setUrgentMaintenance(res.data.urgentMaintenance || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -18,7 +59,7 @@ export function AdminDashboard() {
             </div>
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
-          <p className="text-3xl mb-1">{stats.totalStudents}</p>
+          <p className="text-3xl mb-1">{stats?.totalStudents ?? (loading ? '—' : 0)}</p>
           <p className="text-sm text-gray-600">Total Students</p>
         </div>
 
@@ -31,7 +72,7 @@ export function AdminDashboard() {
               <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded">Pending</span>
             )}
           </div>
-          <p className="text-3xl mb-1">{stats.pendingMaintenance}</p>
+          <p className="text-3xl mb-1">{stats?.pendingMaintenance ?? (loading ? '—' : 0)}</p>
           <p className="text-sm text-gray-600">Pending Maintenance</p>
         </div>
 
@@ -41,7 +82,7 @@ export function AdminDashboard() {
               <Calendar className="w-6 h-6" />
             </div>
           </div>
-          <p className="text-3xl mb-1">{stats.pendingCleaning}</p>
+          <p className="text-3xl mb-1">{stats?.pendingCleaning ?? (loading ? '—' : 0)}</p>
           <p className="text-sm text-gray-600">Cleaning Tasks</p>
         </div>
 
@@ -54,7 +95,7 @@ export function AdminDashboard() {
               <AlertCircle className="w-5 h-5 text-red-500" />
             )}
           </div>
-          <p className="text-3xl mb-1">{stats.overduePayments}</p>
+          <p className="text-3xl mb-1">{stats?.overduePayments ?? (loading ? '—' : 0)}</p>
           <p className="text-sm text-gray-600">Overdue Payments</p>
         </div>
       </div>
@@ -81,7 +122,7 @@ export function AdminDashboard() {
                 </div>
                 <p className="text-sm text-gray-600 mt-1 line-clamp-2">{announcement.content}</p>
                 <p className="text-xs text-gray-500 mt-2">
-                  {new Date(announcement.createdAt).toLocaleDateString()}
+                  {new Date(announcement.created_at).toLocaleDateString()}
                 </p>
               </div>
             ))}
@@ -98,7 +139,9 @@ export function AdminDashboard() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <h4 className="text-[#001F3F]">{request.title}</h4>
-                      <p className="text-sm text-gray-600">Room {request.roomNumber} - {request.studentName}</p>
+                      <p className="text-sm text-gray-600">
+                        Room {request.room_number ?? 'N/A'} - {request.student?.name ?? 'Unknown'}
+                      </p>
                     </div>
                     <span className="bg-red-500 text-white text-xs px-2 py-1 rounded">HIGH</span>
                   </div>
@@ -112,7 +155,7 @@ export function AdminDashboard() {
                       {request.status.replace('-', ' ')}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {new Date(request.createdAt).toLocaleDateString()}
+                      {new Date(request.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>

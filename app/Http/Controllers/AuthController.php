@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\RecaptchaService;
-use App\Services\StudentIdGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,33 +15,29 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly RecaptchaService $recaptcha,
-        private readonly StudentIdGenerator $studentIdGenerator,
     ) {
     }
 
     public function register(Request $request): JsonResponse
     {
         $this->recaptcha->ensureHuman($request->input('recaptcha_token'), 'register');
-        $this->ensureAdmin($request);
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'middle_initial' => 'nullable|string|max:5',
             'email' => 'required|email|unique:users,email',
-            'student_id' => 'nullable|string|unique:users,student_id',
+            'student_id' => 'required|string|unique:users,student_id',
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $studentId = $validated['student_id'] ?? $this->studentIdGenerator->next();
-
-        $user = DB::transaction(function () use ($validated, $studentId) {
+        $user = DB::transaction(function () use ($validated) {
             $fullName = $validated['first_name'] . ' ' .
                 (!empty($validated['middle_initial']) ? $validated['middle_initial'] . '. ' : '') .
                 $validated['last_name'];
 
             $user = User::create([
-                'student_id' => $studentId,
+                'student_id' => $validated['student_id'],
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
@@ -121,7 +116,6 @@ class AuthController extends Controller
         $user = User::firstOrCreate(
             ['email' => $googleUser->getEmail()],
             [
-                'student_id' => $this->studentIdGenerator->next(),
                 'first_name' => $googleUser->user['given_name'] ?? $googleUser->getName(),
                 'last_name' => $googleUser->user['family_name'] ?? '',
                 'name' => $googleUser->getName() ?: $googleUser->getEmail(),
@@ -129,10 +123,6 @@ class AuthController extends Controller
                 'role' => 'student',
             ]
         );
-
-        if (!$user->student_id) {
-            $user->update(['student_id' => $this->studentIdGenerator->next()]);
-        }
 
         $user->studentProfile()->firstOrCreate(
             [],
@@ -163,14 +153,6 @@ class AuthController extends Controller
         ]);
 
         return redirect()->away($redirect . '?' . $query);
-    }
-
-    private function ensureAdmin(Request $request): void
-    {
-        $user = $request->user();
-        if (!$user || $user->role !== 'admin') {
-            abort(403, 'Only administrators can register students.');
-        }
     }
 
     private function ensureGoogleConfigured(): void

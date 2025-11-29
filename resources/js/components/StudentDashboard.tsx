@@ -1,23 +1,67 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { DollarSign, Wrench, Megaphone, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { mockPayments, mockMaintenanceRequests, mockAnnouncements } from '../data/mockData';
+import { StudentPayments } from './StudentPayments';
+
+interface StudentPayment {
+  id: number;
+  amount: number;
+  status: 'paid' | 'pending' | 'overdue' | 'verified';
+}
+
+interface StudentRequest {
+  id: number;
+  title: string;
+  description: string;
+  urgency: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in-progress' | 'resolved';
+  created_at: string;
+}
+
+interface StudentAnnouncement {
+  id: number;
+  title: string;
+  content: string;
+  priority: 'normal' | 'important' | 'urgent';
+  created_at: string;
+}
 
 export function StudentDashboard() {
   const { user } = useAuth();
-  
-  // Filter data for current student
-  const studentPayments = mockPayments.filter(p => p.studentId === 1);
-  const studentRequests = mockMaintenanceRequests.filter(r => r.studentId === 1);
-  const recentAnnouncements = mockAnnouncements.slice(0, 3);
-  
-  // Calculate balance
+  const [payments, setPayments] = useState<StudentPayment[]>([]);
+  const [requests, setRequests] = useState<StudentRequest[]>([]);
+  const [announcements, setAnnouncements] = useState<StudentAnnouncement[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      try {
+        const [paymentsRes, requestsRes, announcementsRes] = await Promise.all([
+          axios.get('/api/payments', { params: { student_id: user.id } }),
+          axios.get('/api/maintenance-requests', { params: { student_id: user.id } }),
+          axios.get('/api/announcements'),
+        ]);
+        setPayments(paymentsRes.data);
+        setRequests(requestsRes.data);
+        setAnnouncements(announcementsRes.data);
+      } catch (error) {
+        console.error('Error loading student dashboard data', error);
+      }
+    };
+    load();
+  }, [user]);
+
+  const studentPayments = payments;
+  const studentRequests = requests;
+  const recentAnnouncements = announcements.slice(0, 3);
+
   const totalDue = studentPayments
-    .filter(p => p.status === 'pending' || p.status === 'overdue')
+    .filter((p) => p.status === 'pending' || p.status === 'overdue')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const overdueCount = studentPayments.filter(p => p.status === 'overdue').length;
-  const pendingRequests = studentRequests.filter(r => r.status !== 'resolved').length;
+  const overdueCount = studentPayments.filter((p) => p.status === 'overdue').length;
+  const pendingRequests = studentRequests.filter((r) => r.status !== 'resolved').length;
 
   return (
     <div className="space-y-6">
@@ -41,7 +85,7 @@ export function StudentDashboard() {
               <AlertCircle className="w-5 h-5 text-red-500" />
             )}
           </div>
-          <p className="text-3xl mb-1">${totalDue}</p>
+          <p className="text-3xl mb-1">₱{totalDue.toFixed(2)}</p>
           <p className="text-sm text-gray-600">Current Balance</p>
           {overdueCount > 0 && (
             <p className="text-xs text-red-600 mt-2">{overdueCount} overdue payment(s)</p>
@@ -69,7 +113,7 @@ export function StudentDashboard() {
               <Megaphone className="w-6 h-6" />
             </div>
           </div>
-          <p className="text-3xl mb-1">{mockAnnouncements.length}</p>
+          <p className="text-3xl mb-1">{announcements.length}</p>
           <p className="text-sm text-gray-600">Active Announcements</p>
         </div>
       </div>
@@ -113,7 +157,7 @@ export function StudentDashboard() {
                     }`}>
                       {request.urgency} priority
                     </span>
-                    <span>{new Date(request.createdAt).toLocaleDateString()}</span>
+                    <span>{new Date(request.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               ))
@@ -126,32 +170,8 @@ export function StudentDashboard() {
           </div>
         </div>
 
-        {/* Recent Announcements */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-[#001F3F] mb-4">Latest Announcements</h3>
-          <div className="space-y-4">
-            {recentAnnouncements.map((announcement) => (
-              <div key={announcement.id} className="border-l-4 border-[#FFD700] pl-4 py-2">
-                <div className="flex items-start justify-between">
-                  <h4 className="text-[#001F3F]">{announcement.title}</h4>
-                  <span className={`text-xs px-2 py-1 rounded flex-shrink-0 ${
-                    announcement.priority === 'urgent' 
-                      ? 'bg-red-100 text-red-700'
-                      : announcement.priority === 'important'
-                      ? 'bg-orange-100 text-orange-700'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {announcement.priority}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-1 line-clamp-2">{announcement.content}</p>
-                <p className="text-xs text-gray-500 mt-2">
-                  {new Date(announcement.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* My Payments (live API) */}
+        <StudentPayments />
       </div>
 
       {/* Quick Actions */}
@@ -164,7 +184,7 @@ export function StudentDashboard() {
           </button>
           <button className="flex items-center justify-center gap-2 bg-[#FFD700] text-[#001F3F] px-4 py-3 rounded-lg hover:bg-[#FFC700] transition-colors">
             <DollarSign className="w-5 h-5" />
-            <span>View Payment History</span>
+            <span>Pay Rent / Submit Receipt</span>
           </button>
         </div>
       </div>

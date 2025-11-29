@@ -10,6 +10,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\CleaningScheduleController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\RoomController;
 
 /**
  * NOTE (DEV MODE):
@@ -21,11 +22,11 @@ use App\Http\Controllers\AuthController;
  */
 
 Route::post('auth/login', [AuthController::class, 'login']);
+Route::post('auth/register', [AuthController::class, 'register']);
 Route::get('auth/google/redirect', [AuthController::class, 'redirectToGoogle']);
 Route::get('auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
 
 // Public (no Sanctum) API endpoints for the current mock-auth/frontend
-Route::apiResource('students', StudentController::class);
 Route::post('payments/bulk', [PaymentController::class, 'bulkStore']);
 Route::apiResource('payments', PaymentController::class);
 Route::apiResource('maintenance-requests', MaintenanceRequestController::class);
@@ -35,9 +36,10 @@ Route::apiResource('cleaning-schedule', CleaningScheduleController::class)->only
 Route::get('/dashboard/stats', [DashboardController::class, 'index']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
-    Route::post('auth/register', [AuthController::class, 'register']);
-
     Route::get('/user', function (Request $request) {
         return $request->user()->load('studentProfile.room');
     });
+
+    Route::apiResource('students', StudentController::class);
+    Route::apiResource('rooms', RoomController::class);
 });

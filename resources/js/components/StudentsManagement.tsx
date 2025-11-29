@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { Search, Plus, Edit, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, UserCheck, UserX, Hash } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,12 +9,14 @@ import { Label } from './ui/label';
 
 interface Student {
   id: number;
+  student_id?: string;
   first_name?: string;
   last_name?: string;
   middle_initial?: string;
-  name: string; // fallback full name
+  name: string;
   email: string;
   student_profile?: {
+    room_id?: number;
     room_number: string;
     phone_number: string;
     emergency_contact_name: string;
@@ -24,37 +26,55 @@ interface Student {
   };
 }
 
+interface Room {
+  id: number;
+  code: string;
+  capacity: number;
+  students_count: number;
+}
+
 export function StudentsManagement() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   
-  // Updated initial form state
   const initialForm = {
-    first_name: '', 
-    last_name: '', 
+    student_id: '',
+    first_name: '',
+    last_name: '',
     middle_initial: '',
-    email: '', 
-    room_number: '', 
+    email: '',
+    room_id: 0,
     phone_number: '',
-    emergency_contact_name: '', 
-    emergency_contact_phone: '', 
-    status: 'active'
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    status: 'active' as 'active' | 'inactive',
   };
   const [formData, setFormData] = useState(initialForm);
 
-  useEffect(() => { 
-    fetchStudents(); 
+  useEffect(() => {
+    fetchStudents();
+    fetchRooms();
   }, []);
 
   const fetchStudents = async () => {
     try {
       const res = await axios.get('/api/students');
       setStudents(res.data);
-    } catch (err) { 
-      console.error("Error fetching students:", err); 
+    } catch (err) {
+      console.error('Error fetching students:', err);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const res = await axios.get('/api/rooms');
+      setRooms(res.data);
+    } catch (err) {
+      console.error('Error fetching rooms:', err);
     }
   };
 
@@ -62,11 +82,12 @@ export function StudentsManagement() {
     if (student) {
       setEditingId(student.id);
       setFormData({
+        student_id: student.student_id || '',
         first_name: student.first_name || '',
         last_name: student.last_name || '',
         middle_initial: student.middle_initial || '',
         email: student.email,
-        room_number: student.student_profile?.room_number || '',
+        room_id: student.student_profile?.room_id || 0,
         phone_number: student.student_profile?.phone_number || '',
         emergency_contact_name: student.student_profile?.emergency_contact_name || '',
         emergency_contact_phone: student.student_profile?.emergency_contact_phone || '',
@@ -80,12 +101,11 @@ export function StudentsManagement() {
   };
 
   const handleSubmit = async () => {
-    // Basic validation
-    if (!formData.first_name || !formData.last_name || !formData.room_number) {
+    if (!formData.first_name || !formData.last_name || !formData.student_id || !formData.room_id) {
         Swal.fire({
             icon: 'warning',
             title: 'Missing Fields',
-            text: 'Please fill in First Name, Last Name, and Room Number.',
+            text: 'Please fill in Student ID, Name, and Room.',
             confirmButtonColor: '#001F3F'
         });
         return;
@@ -93,6 +113,19 @@ export function StudentsManagement() {
 
     setLoading(true);
     try {
+      const payload = {
+        student_id: formData.student_id,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        middle_initial: formData.middle_initial || undefined,
+        email: formData.email,
+        room_id: formData.room_id,
+        phone_number: formData.phone_number || undefined,
+        emergency_contact_name: formData.emergency_contact_name || undefined,
+        emergency_contact_phone: formData.emergency_contact_phone || undefined,
+        status: formData.status,
+      };
+
       if (editingId) {
         await axios.put(`/api/students/${editingId}`, formData);
         setIsModalOpen(false); // Close first
@@ -105,7 +138,7 @@ export function StudentsManagement() {
             });
         }, 100);
       } else {
-        await axios.post('/api/students', formData);
+        await axios.post('/api/students', payload);
         setIsModalOpen(false); // Close first
         setTimeout(() => {
             Swal.fire({
@@ -160,9 +193,10 @@ export function StudentsManagement() {
     }
   };
 
-  const filtered = students.filter((s) => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.student_profile?.room_number?.includes(searchTerm)
+  const filtered = students.filter((s) =>
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.student_profile?.room_number?.includes(searchTerm) ||
+    s.student_id?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -191,6 +225,7 @@ export function StudentsManagement() {
           <thead className="bg-[#001F3F] text-white uppercase text-xs">
             <tr>
               <th className="px-6 py-4">Name</th>
+              <th className="px-6 py-4">Student ID</th>
               <th className="px-6 py-4">Room</th>
               <th className="px-6 py-4">Contact</th>
               <th className="px-6 py-4">Status</th>
@@ -202,8 +237,17 @@ export function StudentsManagement() {
                 filtered.map((student) => (
                 <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{student.name}</div>
-                    <div className="text-xs text-gray-500">{student.email}</div>
+                      <div className="font-medium text-gray-900">{student.name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {student.student_id ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                          <Hash className="w-3 h-3" />
+                          {student.student_id}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-6 py-4">{student.student_profile?.room_number || 'N/A'}</td>
                     <td className="px-6 py-4">{student.student_profile?.phone_number || '-'}</td>
@@ -244,7 +288,7 @@ export function StudentsManagement() {
             </DialogTitle>
           </DialogHeader>
           
-          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4 py-4">
             {/* SPLIT NAME FIELDS */}
             <div>
                 <Label>First Name <span className="text-red-500">*</span></Label>
@@ -278,8 +322,27 @@ export function StudentsManagement() {
                 <Input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="student@school.edu" />
             </div>
             <div>
-                <Label>Room Number <span className="text-red-500">*</span></Label>
-                <Input value={formData.room_number} onChange={e => setFormData({...formData, room_number: e.target.value})} placeholder="e.g. 101-A" />
+                <Label>Student ID <span className="text-red-500">*</span></Label>
+                <Input
+                  value={formData.student_id}
+                  onChange={e => setFormData({ ...formData, student_id: e.target.value })}
+                  placeholder="e.g. 2025-001"
+                />
+            </div>
+            <div>
+                <Label>Room <span className="text-red-500">*</span></Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  value={formData.room_id}
+                  onChange={e => setFormData({ ...formData, room_id: Number(e.target.value) })}
+                >
+                  <option value={0}>Select a room</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.code} ({room.students_count}/{room.capacity})
+                    </option>
+                  ))}
+                </select>
             </div>
             <div>
                 <Label>Phone Number</Label>

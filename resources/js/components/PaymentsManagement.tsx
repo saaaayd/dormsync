@@ -155,6 +155,7 @@ export function PaymentsManagement() {
     total: payments.reduce((sum, p) => sum + Number(p.amount || 0), 0),
     pending: payments.filter((p) => p.status === 'pending').length,
     overdue: payments.filter((p) => p.status === 'overdue').length,
+    awaitingApproval: payments.filter((p) => p.status === 'paid' && p.receipt_url && p.status !== 'verified').length,
   };
 
   return (
@@ -193,6 +194,10 @@ export function PaymentsManagement() {
           <p className="text-sm text-gray-500">Overdue Records</p>
           <p className="text-2xl text-red-600">{summary.overdue}</p>
         </div>
+        <div className="bg-white p-4 rounded-lg shadow border-l-4 border-green-500">
+          <p className="text-sm text-gray-500">Awaiting Approval</p>
+          <p className="text-2xl text-green-600">{summary.awaitingApproval}</p>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -203,6 +208,7 @@ export function PaymentsManagement() {
               <th className="px-6 py-3">Amount</th>
               <th className="px-6 py-3">Type</th>
               <th className="px-6 py-3">Due Date</th>
+              <th className="px-6 py-3">Proof</th>
               <th className="px-6 py-3">Status</th>
               <th className="px-6 py-3">Actions</th>
             </tr>
@@ -216,11 +222,27 @@ export function PaymentsManagement() {
                 <td className="px-6 py-4 text-sm text-gray-600">
                   {p.due_date ? new Date(p.due_date).toLocaleDateString() : '--'}
                 </td>
+                <td className="px-6 py-4 text-sm">
+                  {p.receipt_url ? (
+                    <a
+                      href={p.receipt_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      View
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 text-xs">No proof</span>
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   <span
                     className={`px-2 py-1 rounded text-xs ${
-                      p.status === 'paid'
+                      p.status === 'verified'
                         ? 'bg-green-100 text-green-800'
+                        : p.status === 'paid'
+                        ? 'bg-blue-100 text-blue-800'
                         : p.status === 'overdue'
                         ? 'bg-red-100 text-red-700'
                         : 'bg-yellow-100 text-yellow-800'
@@ -304,7 +326,8 @@ export function PaymentsManagement() {
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
               >
                 <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
+                <option value="paid">Paid (waiting approval)</option>
+                <option value="verified">Verified</option>
                 <option value="overdue">Overdue</option>
               </select>
             </div>

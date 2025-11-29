@@ -4,19 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Models\User;
-use App\Services\StudentIdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class StudentController extends Controller
 {
-    public function __construct(private readonly StudentIdGenerator $studentIdGenerator)
-    {
-    }
 
-    public function index()
+    public function index(Request $request)
     {
+        $this->ensureAdmin($request);
+
         return User::where('role', 'student')
             ->with('studentProfile.room')
             ->latest()
@@ -25,12 +23,14 @@ class StudentController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureAdmin($request);
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'middle_initial' => 'nullable|string|max:5',
             'email' => 'required|email|unique:users,email',
-            'student_id' => 'nullable|string|unique:users,student_id',
+            'student_id' => 'required|string|unique:users,student_id',
             'room_id' => 'required|exists:rooms,id',
             'phone_number' => 'nullable|string|max:50',
             'emergency_contact_name' => 'nullable|string|max:255',
@@ -46,7 +46,7 @@ class StudentController extends Controller
 
         $user = DB::transaction(function () use ($validated, $fullName, $room) {
             $user = User::create([
-                'student_id' => $validated['student_id'] ?? $this->studentIdGenerator->next(),
+                'student_id' => $validated['student_id'],
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
@@ -74,6 +74,8 @@ class StudentController extends Controller
 
     public function update(Request $request, $id)
     {
+        $this->ensureAdmin($request);
+
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
@@ -81,7 +83,7 @@ class StudentController extends Controller
             'last_name' => 'required|string|max:255',
             'middle_initial' => 'nullable|string|max:5',
             'email' => "required|email|unique:users,email,{$user->id}",
-            'student_id' => "nullable|string|unique:users,student_id,{$user->id}",
+            'student_id' => "required|string|unique:users,student_id,{$user->id}",
             'room_id' => 'nullable|exists:rooms,id',
             'phone_number' => 'nullable|string|max:50',
             'emergency_contact_name' => 'nullable|string|max:255',
@@ -100,7 +102,7 @@ class StudentController extends Controller
                 $validated['last_name'];
 
             $user->update([
-                'student_id' => $validated['student_id'] ?? $user->student_id ?? $this->studentIdGenerator->next(),
+                'student_id' => $validated['student_id'],
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_initial' => $validated['middle_initial'] ?? null,
@@ -124,8 +126,10 @@ class StudentController extends Controller
         return $user->load('studentProfile.room');
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        $this->ensureAdmin($request);
+
         User::findOrFail($id)->delete();
         return response()->json(['message' => 'Student deleted']);
     }
@@ -140,5 +144,12 @@ class StudentController extends Controller
             abort(422, 'Room is already full.');
         }
     }
+
+    private function ensureAdmin(Request $request): void
+    {
+        $user = $request->user();
+        if (!$user || $user->role !== 'admin') {
+            abort(403, 'Only administrators can manage students.');
+        }
+    }
 }
-<?php
