@@ -5,12 +5,14 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  studentId?: string;
   studentProfile?: StudentProfile;
 }
 
 export interface StudentProfile {
   id: number;
   userId: number;
+  roomId?: number;
   roomNumber: string;
   phoneNumber: string;
   emergencyContactName: string;
@@ -25,10 +27,11 @@ export interface Payment {
   studentName: string;
   amount: number;
   type: 'rent' | 'utilities' | 'maintenance' | 'deposit';
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'verified';
   dueDate: string;
   paidDate?: string;
   notes?: string;
+  receiptUrl?: string;
 }
 
 export interface MaintenanceRequest {
@@ -42,6 +45,7 @@ export interface MaintenanceRequest {
   status: 'pending' | 'in-progress' | 'resolved';
   createdAt: string;
   resolvedAt?: string;
+  attachmentUrl?: string;
 }
 
 export interface Announcement {
@@ -71,6 +75,7 @@ export interface CleaningSchedule {
   scheduledDate: string;
   status: 'pending' | 'completed';
   notes?: string;
+  calendarEventId?: string;
 }
 
 export interface DashboardStats {

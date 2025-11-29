@@ -20,9 +20,9 @@ use App\Http\Controllers\AuthController;
  * When you wire up real auth, you can move these back inside the auth:sanctum group.
  */
 
-// Auth endpoints (no Sanctum tokens, simple JSON-based auth)
 Route::post('auth/login', [AuthController::class, 'login']);
-Route::post('auth/register', [AuthController::class, 'register']);
+Route::get('auth/google/redirect', [AuthController::class, 'redirectToGoogle']);
+Route::get('auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
 
 // Public (no Sanctum) API endpoints for the current mock-auth/frontend
 Route::apiResource('students', StudentController::class);
@@ -34,9 +34,10 @@ Route::apiResource('attendance', AttendanceController::class)->only(['index', 's
 Route::apiResource('cleaning-schedule', CleaningScheduleController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/dashboard/stats', [DashboardController::class, 'index']);
 
-// Protected routes (require Sanctum token)
 Route::middleware(['auth:sanctum'])->group(function () {
+    Route::post('auth/register', [AuthController::class, 'register']);
+
     Route::get('/user', function (Request $request) {
-        return $request->user()->load('studentProfile');
+        return $request->user()->load('studentProfile.room');
     });
 });

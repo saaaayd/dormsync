@@ -35,4 +35,22 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'frontend_redirect' => env('GOOGLE_FRONTEND_REDIRECT_URL'),
+    ],
+
+    'google_drive' => [
+        'service_account' => env('GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'),
+        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
+    ],
+
+    'recaptcha' => [
+        'secret' => env('RECAPTCHA_SECRET_KEY'),
+        'score' => env('RECAPTCHA_MIN_SCORE', 0.5),
+        'skip' => env('RECAPTCHA_SKIP', false),
+    ],
+
 ];

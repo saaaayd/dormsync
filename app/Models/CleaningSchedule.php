@@ -12,5 +12,6 @@ class CleaningSchedule extends Model
         'scheduled_date',
         'status',
         'notes',
+        'calendar_event_id',
     ];
 }

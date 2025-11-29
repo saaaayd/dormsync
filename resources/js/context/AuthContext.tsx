@@ -4,22 +4,27 @@ import { User, StudentProfile } from '../types';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  token: string | null;
+  login: (identifier: string, password: string) => Promise<void>;
+  setSessionFromOauth: (token: string, apiUser: any) => void;
   logout: () => void;
   isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'dormsync_session';
+
 function mapApiUser(apiUser: any): User {
   let studentProfile: StudentProfile | undefined;
 
-  if (apiUser.student_profile) {
+  if (apiUser?.student_profile) {
     const sp = apiUser.student_profile;
     studentProfile = {
       id: sp.id,
       userId: sp.user_id,
-      roomNumber: sp.room_number,
+      roomId: sp.room_id,
+      roomNumber: sp.room_number ?? sp.room?.code ?? '',
       phoneNumber: sp.phone_number,
       emergencyContactName: sp.emergency_contact_name,
       emergencyContactPhone: sp.emergency_contact_phone,
@@ -37,37 +42,57 @@ function mapApiUser(apiUser: any): User {
   };
 }
 
+function persistSession(token: string, user: User) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user }));
+  axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('dormsync_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setUser(parsed.user);
+      setToken(parsed.token);
+      axios.defaults.headers.common.Authorization = `Bearer ${parsed.token}`;
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const setSession = (nextToken: string, apiUser: any) => {
+    const mapped = mapApiUser(apiUser);
+    setUser(mapped);
+    setToken(nextToken);
+    persistSession(nextToken, mapped);
+  };
+
+  const login = async (identifier: string, password: string) => {
     setIsLoading(true);
     try {
-      const res = await axios.post('/api/auth/login', { email, password });
-      const mapped = mapApiUser(res.data);
-      setUser(mapped);
-      localStorage.setItem('dormsync_user', JSON.stringify(mapped));
+      const res = await axios.post('/api/auth/login', { identifier, password });
+      setSession(res.data.token, res.data.user);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const setSessionFromOauth = (nextToken: string, apiUser: any) => {
+    setSession(nextToken, apiUser);
+  };
+
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('dormsync_user');
+    setToken(null);
+    delete axios.defaults.headers.common.Authorization;
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, setSessionFromOauth, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

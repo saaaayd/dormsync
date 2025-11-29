@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\User;
+use App\Notifications\UrgentAnnouncementNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 
 class AnnouncementController extends Controller
 {
@@ -32,7 +34,16 @@ class AnnouncementController extends Controller
         }
         $validated['created_by'] = $creatorId;
 
-        return Announcement::create($validated);
+        $announcement = Announcement::create($validated);
+
+        if ($announcement->priority === 'urgent') {
+            $targets = User::whereHas('pushSubscriptions')->get();
+            if ($targets->isNotEmpty()) {
+                Notification::send($targets, new UrgentAnnouncementNotification($announcement));
+            }
+        }
+
+        return $announcement;
     }
 
     public function update(Request $request, $id)

@@ -13,6 +13,8 @@ class MaintenanceRequest extends Model
         'urgency',
         'status',
         'room_number',
+        'attachment_drive_id',
+        'attachment_url',
     ];
 
     public function student()

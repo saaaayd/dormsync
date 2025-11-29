@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PaymentVerified;
 use App\Models\Payment;
+use App\Services\GoogleDriveService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class PaymentController extends Controller
 {
+    public function __construct(private readonly GoogleDriveService $driveService)
+    {
+    }
+
     public function index(Request $request)
     {
         $query = Payment::with('student')->latest();
@@ -26,12 +34,19 @@ class PaymentController extends Controller
             'amount' => 'required|numeric',
             'type' => 'required|string',
             'due_date' => 'required|date',
-            'status' => 'required|in:paid,pending,overdue',
+            'status' => 'required|in:paid,pending,overdue,verified',
             'notes' => 'nullable|string',
+            'receipt_image' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
-        if ($validated['status'] === 'paid') {
+        if (in_array($validated['status'], ['paid', 'verified'], true)) {
             $validated['paid_date'] = now();
+        }
+
+        if ($request->hasFile('receipt_image')) {
+            $upload = $this->uploadReceipt($request->file('receipt_image'));
+            $validated['receipt_drive_id'] = $upload['id'];
+            $validated['receipt_url'] = $upload['url'];
         }
 
         return Payment::create($validated)->load('student');
@@ -45,7 +60,7 @@ class PaymentController extends Controller
             'payments.*.amount' => 'required|numeric',
             'payments.*.type' => 'required|string',
             'payments.*.due_date' => 'required|date',
-            'payments.*.status' => 'required|in:paid,pending,overdue',
+            'payments.*.status' => 'required|in:paid,pending,overdue,verified',
             'payments.*.notes' => 'nullable|string',
         ]);
 
@@ -53,7 +68,7 @@ class PaymentController extends Controller
 
         DB::transaction(function () use ($validated, &$created) {
             foreach ($validated['payments'] as $paymentData) {
-                if ($paymentData['status'] === 'paid') {
+                if (in_array($paymentData['status'], ['paid', 'verified'], true)) {
                     $paymentData['paid_date'] = now();
                 }
                 $created[] = Payment::create($paymentData)->load('student');
@@ -72,15 +87,29 @@ class PaymentController extends Controller
             'amount' => 'sometimes|numeric',
             'type' => 'sometimes|string',
             'due_date' => 'sometimes|date',
-            'status' => 'sometimes|in:paid,pending,overdue',
+            'status' => 'sometimes|in:paid,pending,overdue,verified',
             'notes' => 'nullable|string',
+            'receipt_image' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
         if (array_key_exists('status', $validated)) {
-            $validated['paid_date'] = $validated['status'] === 'paid' ? now() : null;
+            $validated['paid_date'] = in_array($validated['status'], ['paid', 'verified'], true) ? now() : null;
         }
 
+        if ($request->hasFile('receipt_image')) {
+            $upload = $this->uploadReceipt($request->file('receipt_image'));
+            $validated['receipt_drive_id'] = $upload['id'];
+            $validated['receipt_url'] = $upload['url'];
+        }
+
+        $wasVerified = $payment->status === 'verified';
         $payment->update($validated);
+
+        $payment->refresh();
+
+        if (($validated['status'] ?? null) === 'verified' && !$wasVerified && $payment->student) {
+            Mail::to($payment->student->email)->queue(new PaymentVerified($payment));
+        }
 
         return $payment->load('student');
     }
@@ -89,5 +118,15 @@ class PaymentController extends Controller
     {
         Payment::destroy($id);
         return response()->noContent();
+    }
+
+    private function uploadReceipt(UploadedFile $file): array
+    {
+        try {
+            return $this->driveService->upload($file, 'payment');
+        } catch (\Throwable $exception) {
+            report($exception);
+            abort(422, 'Unable to upload receipt to Google Drive.');
+        }
     }
 }

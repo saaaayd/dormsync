@@ -14,6 +14,8 @@ class Payment extends Model
         'due_date',
         'paid_date',
         'notes',
+        'receipt_drive_id',
+        'receipt_url',
     ];
 
     public function student()

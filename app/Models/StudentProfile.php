@@ -8,6 +8,7 @@ class StudentProfile extends Model
 {
     protected $fillable = [
         'user_id',
+        'room_id',
         'room_number',
         'phone_number',
         'emergency_contact_name',
@@ -19,5 +20,10 @@ class StudentProfile extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function room()
+    {
+        return $this->belongsTo(Room::class);
     }
 }
