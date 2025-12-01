@@ -68,7 +68,7 @@ export function AdminDashboard() {
             <div className="bg-[#FFD700] text-[#001F3F] p-3 rounded-lg">
               <Wrench className="w-6 h-6" />
             </div>
-            {stats.pendingMaintenance > 0 && (
+            {(stats?.pendingMaintenance ?? 0) > 0 && (
               <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded">Pending</span>
             )}
           </div>
@@ -91,7 +91,7 @@ export function AdminDashboard() {
             <div className="bg-red-500 text-white p-3 rounded-lg">
               <DollarSign className="w-6 h-6" />
             </div>
-            {stats.overduePayments > 0 && (
+            {stats?.overduePayments && stats.overduePayments > 0 && (
               <AlertCircle className="w-5 h-5 text-red-500" />
             )}
           </div>
