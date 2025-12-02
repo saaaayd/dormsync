@@ -17,8 +17,6 @@ use App\Http\Controllers\RoomController;
  * The frontend currently uses a mock authentication context (no Sanctum tokens),
  * so we expose most API resources outside the Sanctum middleware group to allow
  * the React app to call them without authentication during development.
- *
- * When you wire up real auth, you can move these back inside the auth:sanctum group.
  */
 
 Route::post('auth/login', [AuthController::class, 'login']);
@@ -35,11 +33,13 @@ Route::apiResource('attendance', AttendanceController::class)->only(['index', 's
 Route::apiResource('cleaning-schedule', CleaningScheduleController::class)->only(['index', 'store', 'update', 'destroy']);
 Route::get('/dashboard/stats', [DashboardController::class, 'index']);
 
+// FIX: Moved 'students' here so the frontend can populate dropdowns without a token
+Route::apiResource('students', StudentController::class);
+
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user()->load('studentProfile.room');
     });
 
-    Route::apiResource('students', StudentController::class);
     Route::apiResource('rooms', RoomController::class);
 });

@@ -42,7 +42,8 @@ class MaintenanceRequestController extends Controller
         $student = User::with('studentProfile')->findOrFail($validated['student_id']);
 
         if (empty($validated['room_number'])) {
-            $validated['room_number'] = $student->studentProfile->room_number ?? 'N/A';
+            // FIX: Use null-safe operator (?->) to prevent crash if studentProfile is null
+            $validated['room_number'] = $student->studentProfile?->room_number ?? 'N/A';
         }
 
         if (empty($validated['status'])) {
@@ -102,7 +103,7 @@ class MaintenanceRequestController extends Controller
             return $this->driveService->upload($file, 'maintenance');
         } catch (\Throwable $exception) {
             report($exception);
-            abort(422, 'Unable to upload maintenance attachment.');
+            abort(422, 'Unable to upload maintenance attachment. Please check Google Drive configuration.');
         }
     }
 }

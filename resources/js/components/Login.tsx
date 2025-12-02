@@ -92,12 +92,20 @@ export function Login() {
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          data.message ||
-            (data.errors && Object.values(data.errors)[0][0]) ||
-            'Registration failed',
-        );
+        // FIX: Cast the response data to 'any' to avoid "Object is of type 'unknown'" error
+        const data = await res.json().catch(() => ({})) as any;
+        
+        // Safe extraction of Laravel validation error message
+        let errorMessage = data.message || 'Registration failed';
+        
+        if (data.errors) {
+           const errorValues = Object.values(data.errors);
+           if (errorValues.length > 0 && Array.isArray(errorValues[0]) && errorValues[0].length > 0) {
+               errorMessage = String(errorValues[0][0]);
+           }
+        }
+
+        throw new Error(errorMessage);
       }
 
       setSuccess('Account created. You can now sign in.');
